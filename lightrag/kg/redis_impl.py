@@ -41,6 +41,7 @@ MAX_CONNECTIONS = int(os.getenv("REDIS_MAX_CONNECTIONS", "200"))
 SOCKET_TIMEOUT = float(os.getenv("REDIS_SOCKET_TIMEOUT", "30.0"))
 SOCKET_CONNECT_TIMEOUT = float(os.getenv("REDIS_CONNECT_TIMEOUT", "10.0"))
 RETRY_ATTEMPTS = int(os.getenv("REDIS_RETRY_ATTEMPTS", "3"))
+PASSWORD = os.getenv("REDIS_PASSWORD", "")
 
 # Tenacity retry decorator for Redis operations
 redis_retry = retry(
@@ -73,6 +74,7 @@ class RedisConnectionManager:
                     decode_responses=True,
                     socket_timeout=SOCKET_TIMEOUT,
                     socket_connect_timeout=SOCKET_CONNECT_TIMEOUT,
+                    password=PASSWORD,
                 )
                 cls._pool_refs[redis_url] = 0
                 logger.info(f"Created shared Redis connection pool for {redis_url}")
