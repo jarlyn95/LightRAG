@@ -72,3 +72,6 @@ download_models_hf.py
 
 # Cline files
 memory-bank
+.clinerules
+
+uv.lock
