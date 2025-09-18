@@ -73,3 +73,5 @@ test_*
 memory-bank
 memory-bank/
 .clinerules
+
+uv.lock
