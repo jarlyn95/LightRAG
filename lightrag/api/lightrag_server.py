@@ -923,9 +923,9 @@ def main():
         print("Running under Gunicorn - worker management handled by Gunicorn")
         return
 
-    # Check .env file
-    if not check_env_file():
-        sys.exit(1)
+    # # Check .env file
+    # if not check_env_file():
+    #     sys.exit(1)
 
     # Check and install dependencies
     check_and_install_dependencies()
