@@ -46,7 +46,11 @@ from lightrag.constants import (
 # use the .env that is inside the current folder
 # allows to use different .env file for each lightrag instance
 # the OS environment variables take precedence over the .env file
-load_dotenv(dotenv_path=".env", override=False)
+# load_dotenv(dotenv_path=".env", override=False)
+
+from pathlib import Path
+env_pth = Path(__file__).parents[4] / '.env_dev'
+load_dotenv(dotenv_path=env_pth, override=False)
 
 
 ollama_server_infos = OllamaServerInfos()
