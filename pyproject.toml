@@ -24,7 +24,7 @@ dependencies = [
     "aiohttp",
     "configparser",
     "dotenv",
-    "fastapi==0.116.2",
+    "fastapi===0.121.0",
     "future",
     "google-api-core>=2.0.0,<3.0.0",
     "google-genai>=1.0.0,<2.0.0",
