@@ -3498,18 +3498,18 @@ async def _perform_kg_search(
         # First from local
         if i < len(local_entities):
             entity = local_entities[i]
-            entity_name = entity.get("entity_name")
-            if entity_name and entity_name not in seen_entities:
+            uid = entity.get('uid') or entity.get("entity_name") # 使用or兼容无uid的老数据
+            if uid and uid not in seen_entities:
                 final_entities.append(entity)
-                seen_entities.add(entity_name)
+                seen_entities.add(uid)
 
         # Then from global
         if i < len(global_entities):
             entity = global_entities[i]
-            entity_name = entity.get("entity_name")
-            if entity_name and entity_name not in seen_entities:
+            uid = entity.get('uid') or entity.get("entity_name")
+            if uid and uid not in seen_entities:
                 final_entities.append(entity)
-                seen_entities.add(entity_name)
+                seen_entities.add(uid)
 
     # Round-robin merge relations
     final_relations = []
@@ -3630,7 +3630,8 @@ async def _apply_token_truncation(
         if "src_tgt" in relation:
             entity1, entity2 = relation["src_tgt"]
         else:
-            entity1, entity2 = relation.get("src_id"), relation.get("tgt_id")
+            entity1, entity2 = (relation.get("source_name") or relation.get("src_id"),
+                                relation.get('target_name') or relation.get("tgt_id")) # 兼容无source_name/target_name的老数据
 
         # Store mapping from relation pair to original data
         relation_key = (entity1, entity2)
@@ -4152,7 +4153,7 @@ async def _get_node_data(
         return [], []
 
     # Extract all entity IDs from your results list
-    node_ids = [r["entity_name"] for r in results]
+    node_ids = [r["id"] or r["entity_name"] for r in results] # 兼容无id的老数据
 
     # Call the batch node retrieval and degree functions concurrently.
     nodes_dict, degrees_dict = await asyncio.gather(
@@ -4491,7 +4492,7 @@ async def _find_most_related_entities_from_relationships(
             logger.warning(f"Node '{entity_name}' not found in batch retrieval.")
             continue
         # Combine the node data with the entity name, no rank needed
-        combined = {**node, "entity_name": entity_name}
+        combined = {**node, "entity_name": node.get("entity_id")}
         node_datas.append(combined)
 
     return node_datas

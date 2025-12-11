@@ -1118,7 +1118,7 @@ class MilvusVectorDBStorage(BaseVectorStorage):
         """
         try:
             # Compute entity ID from name
-            entity_id = compute_mdhash_id(entity_name, prefix="ent-")
+            entity_id = entity_name
             logger.debug(
                 f"[{self.workspace}] Attempting to delete entity {entity_name} with ID {entity_id}"
             )
