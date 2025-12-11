@@ -372,8 +372,8 @@ class Neo4JStorage(BaseGraphStorage):
             database=self._DATABASE, default_access_mode="READ"
         ) as session:
             try:
-                query = f"MATCH (n:`{workspace_label}` {{uid: $uid}}) RETURN count(n) > 0 AS node_exists"
-                result = await session.run(query, uid=node_id)
+                query = f"MATCH (n:`{workspace_label}` {{entity_id: $entity_id}}) RETURN count(n) > 0 AS node_exists"
+                result = await session.run(query, entity_id=node_id)
                 single_result = await result.single()
                 await result.consume()  # Ensure result is fully consumed
                 return single_result["node_exists"]
@@ -405,7 +405,7 @@ class Neo4JStorage(BaseGraphStorage):
         ) as session:
             try:
                 query = (
-                    f"MATCH (a:`{workspace_label}` {{uid: $source_entity_id}})-[r]-(b:`{workspace_label}` {{uid: $target_entity_id}}) "
+                    f"MATCH (a:`{workspace_label}` {{entity_id: $source_entity_id}})-[r]-(b:`{workspace_label}` {{entity_id: $target_entity_id}}) "
                     "RETURN COUNT(r) > 0 AS edgeExists"
                 )
                 result = await session.run(
@@ -443,9 +443,9 @@ class Neo4JStorage(BaseGraphStorage):
         ) as session:
             try:
                 query = (
-                    f"MATCH (n:`{workspace_label}` {{uid: $uid}}) RETURN n"
+                    f"MATCH (n:`{workspace_label}` {{entity_id: $entity_id}}) RETURN n"
                 )
-                result = await session.run(query, uid=node_id)
+                result = await session.run(query, entity_id=node_id)
                 try:
                     records = await result.fetch(
                         2
@@ -492,13 +492,13 @@ class Neo4JStorage(BaseGraphStorage):
         ) as session:
             query = f"""
             UNWIND $node_ids AS id
-            MATCH (n:`{workspace_label}` {{uid: id}})
-            RETURN n.uid AS uid, n
+            MATCH (n:`{workspace_label}` {{entity_id: id}})
+            RETURN n.entity_id AS entity_id, n
             """
             result = await session.run(query, node_ids=node_ids)
             nodes = {}
             async for record in result:
-                entity_id = record["uid"]
+                entity_id = record["entity_id"]
                 node = record["n"]
                 node_dict = dict(node)
                 # Remove the workspace label if present in a 'labels' property
@@ -577,13 +577,13 @@ class Neo4JStorage(BaseGraphStorage):
         ) as session:
             query = f"""
                 UNWIND $node_ids AS id
-                MATCH (n:`{workspace_label}` {{uid: id}})
-                RETURN n.uid AS uid, count {{ (n)--() }} AS degree;
+                MATCH (n:`{workspace_label}` {{entity_id: id}})
+                RETURN n.entity_id AS entity_id, count {{ (n)--() }} AS degree;
             """
             result = await session.run(query, node_ids=node_ids)
             degrees = {}
             async for record in result:
-                entity_id = record["uid"]
+                entity_id = record["entity_id"]
                 degrees[entity_id] = record["degree"]
             await result.consume()  # Ensure result is fully consumed
 
@@ -666,7 +666,7 @@ class Neo4JStorage(BaseGraphStorage):
                 database=self._DATABASE, default_access_mode="READ"
             ) as session:
                 query = f"""
-                MATCH (start:`{workspace_label}` {{uid: $source_entity_id}})-[r]-(end:`{workspace_label}` {{uid: $target_entity_id}})
+                MATCH (start:`{workspace_label}` {{entity_id: $source_entity_id}})-[r]-(end:`{workspace_label}` {{entity_id: $target_entity_id}})
                 RETURN properties(r) as edge_properties
                 """
                 result = await session.run(
@@ -749,9 +749,8 @@ class Neo4JStorage(BaseGraphStorage):
         ) as session:
             query = f"""
             UNWIND $pairs AS pair
-            MATCH (start:`{workspace_label}` {{uid: pair.src}})-[r:DIRECTED]-(end:`{workspace_label}` {{uid: pair.tgt}})
-            RETURN pair.src AS src_id, pair.tgt AS tgt_id, start.entity_id AS source_name, end.entity_id AS target_name,
-            collect(properties(r)) AS edges
+            MATCH (start:`{workspace_label}` {{entity_id: pair.src}})-[r:DIRECTED]-(end:`{workspace_label}` {{entity_id: pair.tgt}})
+            RETURN pair.src AS src_id, pair.tgt AS tgt_id, collect(properties(r)) AS edges
             """
             result = await session.run(query, pairs=pairs)
             edges_dict = {}
@@ -779,8 +778,6 @@ class Neo4JStorage(BaseGraphStorage):
                         "description": None,
                         "keywords": None,
                     }
-                edges_dict[(src, tgt)]["source_name"] = record["source_name"]
-                edges_dict[(src, tgt)]["target_name"] = record["target_name"]
             await result.consume()
             return edges_dict
 
@@ -804,9 +801,9 @@ class Neo4JStorage(BaseGraphStorage):
             ) as session:
                 try:
                     workspace_label = self._get_workspace_label()
-                    query = f"""MATCH (n:`{workspace_label}` {{uid: $entity_id}})
+                    query = f"""MATCH (n:`{workspace_label}` {{entity_id: $entity_id}})
                             OPTIONAL MATCH (n)-[r]-(connected:`{workspace_label}`)
-                            WHERE connected.uid IS NOT NULL
+                            WHERE connected.entity_id IS NOT NULL
                             RETURN n, r, connected"""
                     results = await session.run(query, entity_id=source_node_id)
 
@@ -932,20 +929,20 @@ class Neo4JStorage(BaseGraphStorage):
         workspace_label = self._get_workspace_label()
         properties = node_data
         entity_type = properties["entity_type"]
-        if "uid" not in properties:
-            raise ValueError("Neo4j: node properties must contain an 'uid' field")
+        if "entity_id" not in properties:
+            raise ValueError("Neo4j: node properties must contain an 'entity_id' field")
 
         try:
             async with self._driver.session(database=self._DATABASE) as session:
 
                 async def execute_upsert(tx: AsyncManagedTransaction):
                     query = f"""
-                    MERGE (n:`{workspace_label}` {{uid: $uid}})
+                    MERGE (n:`{workspace_label}` {{entity_id: $entity_id}})
                     SET n += $properties
                     SET n:`{entity_type}`
                     """
                     result = await tx.run(
-                        query, uid=node_id, properties=properties
+                        query, entity_id=node_id, properties=properties
                     )
                     await result.consume()  # Ensure result is fully consumed
 
@@ -992,9 +989,9 @@ class Neo4JStorage(BaseGraphStorage):
                 async def execute_upsert(tx: AsyncManagedTransaction):
                     workspace_label = self._get_workspace_label()
                     query = f"""
-                    MATCH (source:`{workspace_label}` {{uid: $source_entity_id}})
+                    MATCH (source:`{workspace_label}` {{entity_id: $source_entity_id}})
                     WITH source
-                    MATCH (target:`{workspace_label}` {{uid: $target_entity_id}})
+                    MATCH (target:`{workspace_label}` {{entity_id: $target_entity_id}})
                     MERGE (source)-[r:DIRECTED]-(target)
                     SET r += $properties
                     RETURN r, source, target
@@ -1125,14 +1122,9 @@ class Neo4JStorage(BaseGraphStorage):
                                 "max_depth": max_depth,
                             },
                         )
-                        # replace single() with fetch(2) to avoid UserWarning
-                        full_records = await full_result.fetch(2)
-                        if len(full_records) > 1:
-                            logger.warning(
-                                f"[{self.workspace}] Multiple records returned for APOC full subgraph; using the first."
-                            )
-                        full_record = full_records[0] if full_records else None
+                        full_record = await full_result.single()
 
+                        # If no record found, return empty KnowledgeGraph
                         if not full_record:
                             logger.debug(
                                 f"[{self.workspace}] No nodes found for entity_id: {node_label}"
@@ -1183,13 +1175,7 @@ class Neo4JStorage(BaseGraphStorage):
                                         "max_nodes": max_nodes,
                                     },
                                 )
-                                # replace single() with fetch(2) to avoid UserWarning
-                                limited_records = await result_set.fetch(2)
-                                if len(limited_records) > 1:
-                                    logger.warning(
-                                        f"[{self.workspace}] Multiple records returned for APOC limited subgraph; using the first."
-                                    )
-                                record = limited_records[0] if limited_records else None
+                                record = await result_set.single()
                             finally:
                                 if result_set:
                                     await result_set.consume()
@@ -1273,28 +1259,22 @@ class Neo4JStorage(BaseGraphStorage):
             """
             node_result = await session.run(query, entity_id=node_label)
             try:
-                # 获取所有匹配的起始节点，全部入队
-                start_records = await node_result.fetch(1000)
-                if not start_records:
+                node_record = await node_result.single()
+                if not node_record:
                     return result
 
-                if len(start_records) > 1:
-                    logger.warning(
-                        f"[{self.workspace}] Multiple start nodes found for entity_id '{node_label}', enqueueing all."
-                    )
-
-                # 初始化队列，包含所有起始节点
-                queue = deque()
-                for rec in start_records:
-                    n = rec["n"]
-                    start_node = KnowledgeGraphNode(
-                        id=f"{n.get('uid')}",
-                        labels=[n.get("entity_id")],
-                        properties=dict(n._properties),
-                    )
-                    queue.append((start_node, None, 0))
+                # Create initial KnowledgeGraphNode
+                start_node = KnowledgeGraphNode(
+                    id=f"{node_record['n'].get('entity_id')}",
+                    labels=[node_record["n"].get("entity_id")],
+                    properties=dict(node_record["n"]._properties),
+                )
             finally:
                 await node_result.consume()  # Ensure results are consumed
+
+        # Initialize queue for BFS with (node, edge, depth) tuples
+        # edge is None for the starting node
+        queue = deque([(start_node, None, 0)])
 
         # True BFS implementation using a queue
         while queue and len(visited_nodes) < max_nodes:
@@ -1334,7 +1314,7 @@ class Neo4JStorage(BaseGraphStorage):
             ) as session:
                 workspace_label = self._get_workspace_label()
                 query = f"""
-                MATCH (a:`{workspace_label}` {{uid: $entity_id}})-[r]-(b)
+                MATCH (a:`{workspace_label}` {{entity_id: $entity_id}})-[r]-(b)
                 WITH r, b, id(r) as edge_id, id(b) as target_id
                 RETURN r, b, edge_id, target_id
                 """
@@ -1397,6 +1377,11 @@ class Neo4JStorage(BaseGraphStorage):
                                     logger.debug(
                                         f"[{self.workspace}] Node {target_id} beyond max depth {max_depth}, edge added but node not included"
                                     )
+                            else:
+                                # If target node already exists in result, we don't need to add it again
+                                logger.debug(
+                                    f"[{self.workspace}] Node {target_id} already visited, edge added but node not queued"
+                                )
                         else:
                             logger.warning(
                                 f"[{self.workspace}] Skipping edge {edge_id} due to missing entity_id on target node"
@@ -1463,7 +1448,7 @@ class Neo4JStorage(BaseGraphStorage):
         async def _do_delete(tx: AsyncManagedTransaction):
             workspace_label = self._get_workspace_label()
             query = f"""
-            MATCH (n:`{workspace_label}` {{uid: $entity_id}})
+            MATCH (n:`{workspace_label}` {{entity_id: $entity_id}})
             DETACH DELETE n
             """
             result = await tx.run(query, entity_id=node_id)
@@ -1527,7 +1512,7 @@ class Neo4JStorage(BaseGraphStorage):
             async def _do_delete_edge(tx: AsyncManagedTransaction):
                 workspace_label = self._get_workspace_label()
                 query = f"""
-                MATCH (source:`{workspace_label}` {{uid: $source_entity_id}})-[r]-(target:`{workspace_label}` {{uid: $target_entity_id}})
+                MATCH (source:`{workspace_label}` {{entity_id: $source_entity_id}})-[r]-(target:`{workspace_label}` {{entity_id: $target_entity_id}})
                 DELETE r
                 """
                 result = await tx.run(

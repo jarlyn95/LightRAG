@@ -213,7 +213,6 @@ async def adelete_by_relation(
             rel_ids_to_delete = [
                 compute_mdhash_id(source_entity + target_entity, prefix="rel-"),
                 compute_mdhash_id(target_entity + source_entity, prefix="rel-"),
-                f'rel-{source_entity}-{target_entity}',
             ]
 
             await relationships_vdb.delete(rel_ids_to_delete)
@@ -296,7 +295,7 @@ async def _edit_entity_impl(
             )
 
     new_node_data = {**node_data, **updated_data}
-    # new_node_data["entity_id"] = new_entity_name
+    new_node_data["entity_id"] = new_entity_name
 
     if "entity_name" in new_node_data:
         del new_node_data[
@@ -374,14 +373,14 @@ async def _edit_entity_impl(
     description = new_node_data.get("description", "")
     source_id = new_node_data.get("source_id", "")
     entity_type = new_node_data.get("entity_type", "")
-    content = new_node_data.get('entity_id') + "\n" + description
+    content = entity_name + "\n" + description
 
-    entity_id = new_node_data.get('uid') or compute_mdhash_id(entity_name, prefix="ent-") # 兼容旧数据结构
+    entity_id = compute_mdhash_id(entity_name, prefix="ent-")
 
     entity_data = {
         entity_id: {
             "content": content,
-            "entity_name": new_node_data.get('entity_id') or entity_name, # 兼容旧数据结构
+            "entity_name": entity_name,
             "source_id": source_id,
             "description": description,
             "entity_type": entity_type,
@@ -738,9 +737,9 @@ async def aedit_relation(
     Returns:
         Dictionary containing updated relation information
     """
-    # # Normalize entity order for undirected graph (ensures consistent key generation)
-    # if source_entity > target_entity:
-    #     source_entity, target_entity = target_entity, source_entity
+    # Normalize entity order for undirected graph (ensures consistent key generation)
+    if source_entity > target_entity:
+        source_entity, target_entity = target_entity, source_entity
 
     # Use keyed lock for relation to ensure atomic graph and vector db operations
     workspace = relationships_vdb.global_config.get("workspace", "")
@@ -766,7 +765,6 @@ async def aedit_relation(
             rel_ids_to_delete = [
                 compute_mdhash_id(source_entity + target_entity, prefix="rel-"),
                 compute_mdhash_id(target_entity + source_entity, prefix="rel-"),
-                f'rel-{source_entity}-{target_entity}', # 新数据结构
             ]
             await relationships_vdb.delete(rel_ids_to_delete)
             logger.debug(
@@ -786,13 +784,12 @@ async def aedit_relation(
             weight = float(new_edge_data.get("weight", 1.0))
 
             # Create content for embedding
-            content = f"{keywords}\t{edge_data.get("src_name")}\n{edge_data.get("tgt_name")}\n{description}"
+            content = f"{source_entity}\t{target_entity}\n{keywords}\n{description}"
 
             # Calculate relation ID
-            # relation_id = compute_mdhash_id(
-            #     source_entity + target_entity, prefix="rel-"
-            # )
-            relation_id = f'rel-{source_entity}-{target_entity}'  # 新数据结构
+            relation_id = compute_mdhash_id(
+                source_entity + target_entity, prefix="rel-"
+            )
 
             # Prepare data for vector database update
             relation_data = {
@@ -932,16 +929,12 @@ async def acreate_entity(
     ):
         try:
             # Check if entity already exists
-            uid = entity_data.get("uid", None)
-            if not uid:
-                raise ValueError(f"entity_data must contain 'uid' field")
-            existing_node = await chunk_entity_relation_graph.has_node(uid)
+            existing_node = await chunk_entity_relation_graph.has_node(entity_name)
             if existing_node:
-                raise ValueError(f"Entity 'name={entity_name}, uid={uid}' already exists")
+                raise ValueError(f"Entity '{entity_name}' already exists")
 
             # Prepare node data with defaults if missing
             node_data = {
-                "uid": uid,
                 "entity_id": entity_name,
                 "entity_type": entity_data.get("entity_type", "UNKNOWN"),
                 "description": entity_data.get("description", ""),
@@ -951,7 +944,7 @@ async def acreate_entity(
             }
 
             # Add entity to knowledge graph
-            await chunk_entity_relation_graph.upsert_node(uid, node_data)
+            await chunk_entity_relation_graph.upsert_node(entity_name, node_data)
 
             # Prepare content for entity
             description = node_data.get("description", "")
@@ -960,12 +953,11 @@ async def acreate_entity(
             content = entity_name + "\n" + description
 
             # Calculate entity ID
-            # entity_id = compute_mdhash_id(entity_name, prefix="ent-")
+            entity_id = compute_mdhash_id(entity_name, prefix="ent-")
 
             # Prepare data for vector database update
             entity_data_for_vdb = {
-                uid: {
-                    "uid": uid,
+                entity_id: {
                     "content": content,
                     "entity_name": entity_name,
                     "source_id": source_id,
@@ -1084,9 +1076,9 @@ async def acreate_relation(
                 source_entity, target_entity, edge_data
             )
 
-            # # Normalize entity order for undirected relation vector (ensures consistent key generation)
-            # if source_entity > target_entity:
-            #     source_entity, target_entity = target_entity, source_entity
+            # Normalize entity order for undirected relation vector (ensures consistent key generation)
+            if source_entity > target_entity:
+                source_entity, target_entity = target_entity, source_entity
 
             # Prepare content for embedding
             description = edge_data.get("description", "")
@@ -1095,14 +1087,12 @@ async def acreate_relation(
             weight = edge_data.get("weight", 1.0)
 
             # Create content for embedding
-            content =  f"{keywords}\t{edge_data.get("src_name")}\n{edge_data.get("tgt_name")}\n{description}"
+            content = f"{keywords}\t{source_entity}\n{target_entity}\n{description}"
 
-            # # Calculate relation ID
-            # relation_id = compute_mdhash_id(
-            #     source_entity + target_entity, prefix="rel-"
-            # )
-
-            relation_id = f'rel-{source_entity}-{target_entity}'
+            # Calculate relation ID
+            relation_id = compute_mdhash_id(
+                source_entity + target_entity, prefix="rel-"
+            )
 
             # Prepare data for vector database update
             relation_data_for_vdb = {
