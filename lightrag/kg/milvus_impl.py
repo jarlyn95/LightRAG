@@ -13,7 +13,8 @@ if not pm.is_installed("pymilvus"):
     pm.install("pymilvus>=2.6.2")
 
 import configparser
-from pymilvus import MilvusClient, DataType, CollectionSchema, FieldSchema  # type: ignore
+from pymilvus import (MilvusClient, DataType, CollectionSchema, FieldSchema,
+                      Function, FunctionType, AnnSearchRequest, RRFRanker, WeightedRanker)  # type: ignore
 
 config = configparser.ConfigParser()
 config.read("config.ini", "utf-8")
@@ -35,6 +36,10 @@ class MilvusVectorDBStorage(BaseVectorStorage):
             ),
             FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dimension),
             FieldSchema(name="created_at", dtype=DataType.INT64),
+            FieldSchema(name="content", dtype=DataType.VARCHAR, description="文本内容", enable_analyzer=True,
+                        enable_match=True, analyzer_params={"tokenizer": "jieba"}, max_length=10*1024),
+            FieldSchema(name="sparse_vector", dtype=DataType.SPARSE_FLOAT_VECTOR,
+                        description='稀疏向量表示，全文检索辅助向量'),
         ]
 
         # Determine specific fields based on namespace
@@ -104,11 +109,21 @@ class MilvusVectorDBStorage(BaseVectorStorage):
         # Merge all fields
         all_fields = base_fields + specific_fields
 
-        return CollectionSchema(
+        schema = CollectionSchema(
             fields=all_fields,
             description=description,
             enable_dynamic_field=True,  # Support dynamic fields
         )
+
+        bm25_function = Function(
+            name="text_bm25_emb",
+            input_field_names=['content'],
+            output_field_names=["sparse_vector"],
+            function_type=FunctionType.BM25,
+        )
+        schema.add_function(bm25_function)
+
+        return schema
 
     def _get_index_params(self):
         """Get IndexParams in a version-compatible way"""
@@ -204,6 +219,12 @@ class MilvusVectorDBStorage(BaseVectorStorage):
                         metric_type="COSINE",
                         params={"M": 16, "efConstruction": 256},
                     )
+                    vector_index.add_index(field_name="sparse_vector",
+                                           index_name="sparse_vector_index",
+                                           index_type="SPARSE_INVERTED_INDEX",
+                                           metric_type="BM25",
+                                           params={"inverted_index_algo": "DAAT_MAXSCORE"})
+
                     self._client.create_index(
                         collection_name=self.final_namespace, index_params=vector_index
                     )
@@ -977,7 +998,8 @@ class MilvusVectorDBStorage(BaseVectorStorage):
             self.meta_fields.add("created_at")
 
         # Initialize client as None - will be created in initialize() method
-        self._client = None
+        self._client: MilvusClient | None = None
+
         self._max_batch_size = self.global_config["embedding_batch_num"]
         self._initialized = False
 
@@ -1086,15 +1108,50 @@ class MilvusVectorDBStorage(BaseVectorStorage):
         # Include all meta_fields (created_at is now always included)
         output_fields = list(self.meta_fields)
 
-        results = self._client.search(
-            collection_name=self.final_namespace,
-            data=embedding,
+        # results = self._client.search(
+        #     collection_name=self.final_namespace,
+        #     data=embedding,
+        #     limit=top_k,
+        #     output_fields=output_fields,
+        #     search_params={
+        #         "metric_type": "COSINE",
+        #         "params": {"radius": self.cosine_better_than_threshold},
+        #     },
+        # )
+
+        # 稀疏向量搜索
+        sparse_req = AnnSearchRequest(
+            data=[query],
+            anns_field="sparse_vector",
+            param={"drop_ratio_search": 0.3},
+            # param={
+            #     "metric_type": "COSINE",
+            #     "params": {"radius": self.cosine_better_than_threshold},
+            # },
             limit=top_k,
-            output_fields=output_fields,
-            search_params={
+            # expr=expr  # 过滤条件
+        )
+
+        # 稠密向量搜索
+        dense_req = AnnSearchRequest(
+            data=embedding,
+            anns_field="vector",
+            param={
                 "metric_type": "COSINE",
                 "params": {"radius": self.cosine_better_than_threshold},
             },
+            limit=top_k,
+        )
+        ranker = WeightedRanker(0.3, 0.7)
+
+        results = self._client.hybrid_search(
+            collection_name=self.final_namespace,
+            reqs=[sparse_req, dense_req],
+            # reqs=[sparse_req],
+            output_fields=output_fields,
+            limit=top_k,
+            ranker=ranker,
+            # ranker=RRFRanker()
         )
         return [
             {
