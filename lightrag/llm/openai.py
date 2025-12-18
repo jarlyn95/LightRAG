@@ -657,7 +657,8 @@ async def openai_embed(
     async with openai_async_client:
         response = await openai_async_client.embeddings.create(
             model=model, input=texts, encoding_format="base64",
-            dimensions=int(os.getenv("EMBEDDING_DIM", "1024")),
+            dimensions=embedding_dim,
+
         )
         return np.array(
             [
