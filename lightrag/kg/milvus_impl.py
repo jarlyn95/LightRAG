@@ -37,7 +37,7 @@ class MilvusVectorDBStorage(BaseVectorStorage):
             FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dimension),
             FieldSchema(name="created_at", dtype=DataType.INT64),
             FieldSchema(name="content", dtype=DataType.VARCHAR, description="文本内容", enable_analyzer=True,
-                        enable_match=True, analyzer_params={"tokenizer": "jieba"},),
+                        enable_match=True, analyzer_params={"tokenizer": "jieba"}, max_length=32*1024 - 1),
             FieldSchema(name="sparse_vector", dtype=DataType.SPARSE_FLOAT_VECTOR,
                         description='稀疏向量表示，全文检索辅助向量'),
         ]
