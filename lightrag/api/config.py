@@ -49,11 +49,9 @@ from lightrag.constants import (
 # load_dotenv(dotenv_path=".env", override=False)
 
 from pathlib import Path
-from config import Config
-if Config.get_environment() in ['development', 'dev']:
-    env_pth = Path(__file__).parents[4] / '.env_dev'
-else:
-    env_pth = Path(__file__).parents[4] / '.env'
+from utils.config import Config
+env = Config.get_environment()
+env_pth = Path(__file__).parents[4] / f'.env_{env}'
 load_dotenv(dotenv_path=env_pth, override=False)
 
 
