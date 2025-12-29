@@ -1142,7 +1142,7 @@ class MilvusVectorDBStorage(BaseVectorStorage):
             },
             limit=top_k,
         )
-        ranker = WeightedRanker(0.3, 0.7)
+        ranker = WeightedRanker(0.2, 0.8)
 
         results = self._client.hybrid_search(
             collection_name=self.final_namespace,
