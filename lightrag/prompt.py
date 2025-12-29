@@ -348,6 +348,7 @@ You are an expert keyword extractor, specializing in analyzing user queries for 
 Given a user query, your task is to extract two distinct types of keywords:
 1. **high_level_keywords**: for overarching concepts or themes, capturing user's core intent, the subject area, or the type of question being asked.
 2. **low_level_keywords**: for specific entities or details, identifying the specific entities, proper nouns, technical jargon, product names, or concrete items.
+3. Both keywords MUST be in the same language as the user query.
 
 ---Instructions & Constraints---
 1. **Output Format**: Your output MUST be a valid JSON object and nothing else. Do not include any explanatory text, markdown code fences (like ```json), or any other text before or after the JSON. It will be parsed directly by a JSON parser.
